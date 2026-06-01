@@ -1,0 +1,131 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PATH: ${{ secrets.VPS_PATH }}
+      PM2_APP: ${{ secrets.PM2_APP }}
+      VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Preflight: verify required secrets are present"
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for var in VPS_HOST VPS_USER VPS_PATH PM2_APP; do
+            if [[ -z "${!var:-}" ]]; then
+              echo "Missing required secret: ${var}"
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Ensure rsync is installed
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          DASHBOARD_SECRET: ci-placeholder-dashboard-secret
+          ORDER_CONFIRMATION_SECRET: ci-placeholder-order-confirmation-secret
+
+      - name: Sanity check standalone output
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -d .next/standalone ]]; then
+            echo "Error: .next/standalone not found. next.config.js must have output: 'standalone'."
+            exit 1
+          fi
+          ls -la .next/standalone | head -n 50
+
+      - name: Write deploy key
+        shell: bash
+        env:
+          VPS_SSH_PRIVATE_KEY_B64: ${{ secrets.VPS_SSH_PRIVATE_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${VPS_SSH_PRIVATE_KEY_B64:-}" ]]; then
+            echo "Missing required secret: VPS_SSH_PRIVATE_KEY_B64"
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          keyfile=~/.ssh/deploy_key
+          printf '%s' "$VPS_SSH_PRIVATE_KEY_B64" | base64 -d > "$keyfile"
+          chmod 600 "$keyfile"
+          if ! head -n 1 "$keyfile" | grep -q "OPENSSH PRIVATE KEY"; then
+            echo "Decoded key does not look like an OpenSSH private key. Ensure VPS_SSH_PRIVATE_KEY_B64 is base64 of the PRIVATE key (not the .pub)."
+            exit 1
+          fi
+
+      - name: Add VPS to known_hosts
+        shell: bash
+        run: |
+          set -euo pipefail
+          PORT="${VPS_SSH_PORT:-22}"
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: SSH smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          PORT="${VPS_SSH_PORT:-22}"
+          SSH_TARGET="${VPS_USER}@${VPS_HOST}"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes -p "$PORT" "$SSH_TARGET" "echo ok"
+
+      - name: Stop app and clean old artifacts on VPS
+        run: |
+          PORT="${VPS_SSH_PORT:-22}"
+          SSH_TARGET="${VPS_USER}@${VPS_HOST}"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "$PORT" "$SSH_TARGET" "pm2 stop \"${PM2_APP}\" || true && cd \"${VPS_PATH}\" && rm -rf node_modules .next/cache .next/server .next/standalone .next/static"
+
+      - name: Sync build artifacts to VPS
+        run: |
+          PORT="${VPS_SSH_PORT:-22}"
+          SSH_TARGET="${VPS_USER}@${VPS_HOST}"
+          rsync -avz -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${PORT}" --exclude='node_modules' .next/standalone/ "${SSH_TARGET}:${VPS_PATH}/.next/standalone/"
+          rsync -avz -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${PORT}" .next/static/ "${SSH_TARGET}:${VPS_PATH}/.next/static/"
+          rsync -avz -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${PORT}" public/ "${SSH_TARGET}:${VPS_PATH}/public/"
+          rsync -avz -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${PORT}" package.json package-lock.json "${SSH_TARGET}:${VPS_PATH}/"
+
+      - name: Finalize runtime and restart PM2
+        run: |
+          PORT="${VPS_SSH_PORT:-22}"
+          SSH_TARGET="${VPS_USER}@${VPS_HOST}"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "$PORT" "$SSH_TARGET" "set -euo pipefail; cd \"${VPS_PATH}\"; rm -rf .next/standalone/.next/static; mkdir -p .next/standalone/.next; cp -R .next/static .next/standalone/.next/static; rm -rf .next/standalone/public; cp -R public .next/standalone/public"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "$PORT" "$SSH_TARGET" "cd \"${VPS_PATH}\" && rm -rf node_modules && npm install --omit=dev"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "$PORT" "$SSH_TARGET" "set -euo pipefail; cd \"${VPS_PATH}\"; mkdir -p .next/standalone/node_modules/sql.js/dist; cp -f node_modules/sql.js/dist/sql-wasm.wasm .next/standalone/node_modules/sql.js/dist/sql-wasm.wasm"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "$PORT" "$SSH_TARGET" "umask 077 && mkdir -p \"${VPS_PATH}/data\" && chmod 700 \"${VPS_PATH}/data\" && touch \"${VPS_PATH}/data/orders.sqlite\" && chmod 600 \"${VPS_PATH}/data/orders.sqlite\""
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "$PORT" "$SSH_TARGET" "set -euo pipefail; cd \"${VPS_PATH}\"; set -a; [ -f .env ] && . ./.env; set +a; HOSTNAME=0.0.0.0 ORDERS_DB_PATH=\"${VPS_PATH}/data/orders.sqlite\" pm2 restart \"${PM2_APP}\" --update-env || HOSTNAME=0.0.0.0 ORDERS_DB_PATH=\"${VPS_PATH}/data/orders.sqlite\" pm2 start .next/standalone/server.js --name \"${PM2_APP}\" --update-env --max-memory-restart 700M"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "$PORT" "$SSH_TARGET" "pm2 describe \"${PM2_APP}\" | sed -n '1,120p'"

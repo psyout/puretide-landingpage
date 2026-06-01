@@ -1,0 +1,155 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--background: #f7fbfb;
+	--foreground: #2f3a3f;
+	--ui-border-color: transparent;
+	--ui-border-width: 0px;
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes fade-in-out {
+	0% {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+	20% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	80% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	100% {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+}
+
+.animate-fade-in {
+	animation: fade-in 0.3s ease-out;
+}
+
+.animate-fade-in-out {
+	animation: fade-in-out 3s ease-out forwards;
+}
+
+html {
+	scroll-behavior: smooth;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--background: #f7fbfb;
+		--foreground: #2f3a3f;
+	}
+}
+
+body {
+	color: var(--foreground);
+	background: var(--background);
+	font-family: var(--font-matimo);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: var(--font-matimo);
+}
+
+p {
+	line-height: 1.4;
+}
+
+@layer base {
+	p {
+		line-height: 1.4;
+	}
+}
+
+@layer utilities {
+	.text-balance {
+		text-wrap: balance;
+	}
+
+	.scrollbar-hide {
+		-ms-overflow-style: none;
+		scrollbar-width: none;
+	}
+
+	.scrollbar-hide::-webkit-scrollbar {
+		display: none;
+	}
+
+	@keyframes fadeUp {
+		from {
+			opacity: 0;
+			transform: translateY(20px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.fade-up {
+		opacity: 0;
+		animation: fadeUp 0.75s ease forwards;
+	}
+
+	.d1 {
+		animation-delay: 0.1s;
+	}
+
+	.d2 {
+		animation-delay: 0.25s;
+	}
+
+	.d3 {
+		animation-delay: 0.4s;
+	}
+
+	.d4 {
+		animation-delay: 0.55s;
+	}
+}
+
+@layer components {
+	.ui-border {
+		border: var(--ui-border-width) solid var(--ui-border-color);
+	}
+
+	.ui-border-t {
+		border-top: var(--ui-border-width) solid var(--ui-border-color);
+	}
+
+	/* Custom select styling with right margin for arrow */
+	select {
+		background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+		background-position: right 0.25rem center;
+		background-repeat: no-repeat;
+		background-size: 1.5em 1.5em;
+		padding-right: 2.5rem;
+		-moz-appearance: none;
+		-webkit-appearance: none;
+		appearance: none;
+	}
+}

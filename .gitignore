@@ -1,0 +1,63 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm-cache/
+
+# local env files
+.env*.local
+.env
+
+# local data
+/data/orders.json
+/data/orders.sqlite
+/data/orders.sqlite-shm
+/data/orders.sqlite-wal
+/data/low-stock.json
+
+/docs/*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+
+DASHBOARD_IDEAS.md
+DIGIPAY_SANDBOX_TESTING.md
+invoice-website.md
+docs/security-hardening-smoke-checklist.md
+
+.env.example
+
+NEXT_STEPS.md
+docs/MAIL_SERVER_FIX_GUIDE.md
+docs/RESEND_SETUP_STEPS.md
+scripts/diagnose-mail-server.sh
+scripts/fix-mail-server.sh
+
+scripts/migrate-emails-to-zoho.mjs
+scripts/test-mail-puretide-connection.mjs
