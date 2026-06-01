@@ -65,6 +65,21 @@ const nextConfig = {
 			},
 		];
 	},
+	async redirects() {
+		return [
+			{
+				source: '/:path*',
+				has: [
+					{
+						type: 'host',
+						value: 'www.puretidewellness.com',
+					},
+				],
+				destination: 'https://puretidewellness.com/:path*',
+				permanent: true,
+			},
+		];
+	},
 };
 
 module.exports = nextConfig;

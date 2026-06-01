@@ -5,6 +5,9 @@ import './globals.css';
 export const metadata: Metadata = {
 	title: 'Pure Tide Wellness - Advanced Peptide Formulations',
 	description: 'Advanced peptide formulations for optimal health and wellness, delivered to your doorstep.',
+	alternates: {
+		canonical: 'https://puretidewellness.com/',
+	},
 	robots: {
 		index: true,
 		follow: true,
